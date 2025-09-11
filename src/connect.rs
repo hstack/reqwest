@@ -764,39 +764,40 @@ impl ConnectorService {
             #[cfg(feature = "default-tls")]
             Inner::DefaultTls(http, tls) => {
                 if dst.scheme() == Some(&Scheme::HTTPS) {
-                    log::trace!("tunneling HTTPS over proxy");
-                    let tls_connector = tokio_native_tls::TlsConnector::from(tls.clone());
-                    let inner =
-                        hyper_tls::HttpsConnector::from((http.clone(), tls_connector.clone()));
-                    // TODO: we could cache constructing this
-                    let mut tunnel =
-                        hyper_util::client::legacy::connect::proxy::Tunnel::new(proxy_dst, inner);
-                    if let Some(auth) = auth {
-                        tunnel = tunnel.with_auth(auth);
-                    }
-                    if let Some(ua) = self.user_agent {
-                        let mut headers = http::HeaderMap::new();
-                        headers.insert(http::header::USER_AGENT, ua);
-                        tunnel = tunnel.with_headers(headers);
-                    }
-                    // Note that custom headers may override the user agent header.
-                    if let Some(custom_headers) = misc {
-                        tunnel = tunnel.with_headers(custom_headers.clone());
-                    }
-                    // We don't wrap this again in an HttpsConnector since that uses Maybe,
-                    // and we know this is definitely HTTPS.
-                    let tunneled = tunnel.call(dst.clone()).await?;
-                    let tls_connector = tokio_native_tls::TlsConnector::from(tls.clone());
-                    let io = tls_connector
-                        .connect(dst.host().ok_or("no host in url")?, TokioIo::new(tunneled))
-                        .await?;
-                    return Ok(Conn {
-                        inner: self.verbose.wrap(NativeTlsConn {
-                            inner: TokioIo::new(io),
-                        }),
-                        is_proxy: false,
-                        tls_info: false,
-                    });
+                    return self.connect_with_maybe_proxy(proxy_dst, true).await;
+                    // log::trace!("tunneling HTTPS over proxy");
+                    // let tls_connector = tokio_native_tls::TlsConnector::from(tls.clone());
+                    // let inner =
+                    //     hyper_tls::HttpsConnector::from((http.clone(), tls_connector.clone()));
+                    // // TODO: we could cache constructing this
+                    // let mut tunnel =
+                    //     hyper_util::client::legacy::connect::proxy::Tunnel::new(proxy_dst, inner);
+                    // if let Some(auth) = auth {
+                    //     tunnel = tunnel.with_auth(auth);
+                    // }
+                    // if let Some(ua) = self.user_agent {
+                    //     let mut headers = http::HeaderMap::new();
+                    //     headers.insert(http::header::USER_AGENT, ua);
+                    //     tunnel = tunnel.with_headers(headers);
+                    // }
+                    // // Note that custom headers may override the user agent header.
+                    // if let Some(custom_headers) = misc {
+                    //     tunnel = tunnel.with_headers(custom_headers.clone());
+                    // }
+                    // // We don't wrap this again in an HttpsConnector since that uses Maybe,
+                    // // and we know this is definitely HTTPS.
+                    // let tunneled = tunnel.call(dst.clone()).await?;
+                    // let tls_connector = tokio_native_tls::TlsConnector::from(tls.clone());
+                    // let io = tls_connector
+                    //     .connect(dst.host().ok_or("no host in url")?, TokioIo::new(tunneled))
+                    //     .await?;
+                    // return Ok(Conn {
+                    //     inner: self.verbose.wrap(NativeTlsConn {
+                    //         inner: TokioIo::new(io),
+                    //     }),
+                    //     is_proxy: false,
+                    //     tls_info: false,
+                    // });
                 }
             }
             #[cfg(feature = "__rustls")]
@@ -806,44 +807,45 @@ impl ConnectorService {
                 tls_proxy,
             } => {
                 if dst.scheme() == Some(&Scheme::HTTPS) {
-                    use rustls_pki_types::ServerName;
-                    use std::convert::TryFrom;
-                    use tokio_rustls::TlsConnector as RustlsConnector;
-
-                    log::trace!("tunneling HTTPS over proxy");
-                    let http = http.clone();
-                    let inner = hyper_rustls::HttpsConnector::from((http, tls_proxy.clone()));
-                    // TODO: we could cache constructing this
-                    let mut tunnel =
-                        hyper_util::client::legacy::connect::proxy::Tunnel::new(proxy_dst, inner);
-                    if let Some(auth) = auth {
-                        tunnel = tunnel.with_auth(auth);
-                    }
-                    if let Some(custom_headers) = misc {
-                        tunnel = tunnel.with_headers(custom_headers.clone());
-                    }
-                    if let Some(ua) = self.user_agent {
-                        let mut headers = http::HeaderMap::new();
-                        headers.insert(http::header::USER_AGENT, ua);
-                        tunnel = tunnel.with_headers(headers);
-                    }
-                    // We don't wrap this again in an HttpsConnector since that uses Maybe,
-                    // and we know this is definitely HTTPS.
-                    let tunneled = tunnel.call(dst.clone()).await?;
-                    let host = dst.host().ok_or("no host in url")?.to_string();
-                    let server_name = ServerName::try_from(host.as_str().to_owned())
-                        .map_err(|_| "Invalid Server Name")?;
-                    let io = RustlsConnector::from(tls.clone())
-                        .connect(server_name, TokioIo::new(tunneled))
-                        .await?;
-
-                    return Ok(Conn {
-                        inner: self.verbose.wrap(RustlsTlsConn {
-                            inner: TokioIo::new(io),
-                        }),
-                        is_proxy: false,
-                        tls_info: false,
-                    });
+                    return self.connect_with_maybe_proxy(proxy_dst, true).await;
+                    // use rustls_pki_types::ServerName;
+                    // use std::convert::TryFrom;
+                    // use tokio_rustls::TlsConnector as RustlsConnector;
+                    //
+                    // log::trace!("tunneling HTTPS over proxy");
+                    // let http = http.clone();
+                    // let inner = hyper_rustls::HttpsConnector::from((http, tls_proxy.clone()));
+                    // // TODO: we could cache constructing this
+                    // let mut tunnel =
+                    //     hyper_util::client::legacy::connect::proxy::Tunnel::new(proxy_dst, inner);
+                    // if let Some(auth) = auth {
+                    //     tunnel = tunnel.with_auth(auth);
+                    // }
+                    // if let Some(custom_headers) = misc {
+                    //     tunnel = tunnel.with_headers(custom_headers.clone());
+                    // }
+                    // if let Some(ua) = self.user_agent {
+                    //     let mut headers = http::HeaderMap::new();
+                    //     headers.insert(http::header::USER_AGENT, ua);
+                    //     tunnel = tunnel.with_headers(headers);
+                    // }
+                    // // We don't wrap this again in an HttpsConnector since that uses Maybe,
+                    // // and we know this is definitely HTTPS.
+                    // let tunneled = tunnel.call(dst.clone()).await?;
+                    // let host = dst.host().ok_or("no host in url")?.to_string();
+                    // let server_name = ServerName::try_from(host.as_str().to_owned())
+                    //     .map_err(|_| "Invalid Server Name")?;
+                    // let io = RustlsConnector::from(tls.clone())
+                    //     .connect(server_name, TokioIo::new(tunneled))
+                    //     .await?;
+                    //
+                    // return Ok(Conn {
+                    //     inner: self.verbose.wrap(RustlsTlsConn {
+                    //         inner: TokioIo::new(io),
+                    //     }),
+                    //     is_proxy: false,
+                    //     tls_info: false,
+                    // });
                 }
             }
             #[cfg(not(feature = "__tls"))]
